@@ -374,23 +374,23 @@ export default function App() {
               <Info size={18} className="text-neutral-400" />
               <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">Task summary</h2>
             </div>
-            <Card className="border-none bg-neutral-900 p-6 text-white">
+            <Card className="p-6">
               <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
                 <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-400">Task ID</p>
-                  <p className="text-sm font-mono">{formData.taskId || 'Missing'}</p>
+                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Task ID</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.taskId || 'Missing'}</p>
                 </div>
                 <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-400">Room ID</p>
-                  <p className="font-medium">{formData.roomId || 'Missing'}</p>
+                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Room ID</p>
+                  <p className="font-medium text-neutral-900">{formData.roomId || 'Missing'}</p>
                 </div>
                 <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-400">Lease ID</p>
-                  <p className="text-sm font-mono">{formData.leaseId || 'Missing'}</p>
+                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Lease ID</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.leaseId || 'Missing'}</p>
                 </div>
                 <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-400">Inquiry ID</p>
-                  <p className="text-sm font-mono">{formData.inquiryId || 'Missing'}</p>
+                  <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Inquiry ID</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.inquiryId || 'Missing'}</p>
                 </div>
               </div>
             </Card>
