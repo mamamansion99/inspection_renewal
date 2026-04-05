@@ -1,0 +1,5 @@
+{
+  "name": "Apartment Renewal Inspection",
+  "description": "Admin-only workflow for apartment renewal inspections with image uploads and webhook integration.",
+  "requestFramePermissions": []
+}
