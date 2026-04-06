@@ -268,12 +268,31 @@ export default function App() {
       };
 
       if (APPS_SCRIPT_URL) {
-        await fetch(APPS_SCRIPT_URL, {
+        const response = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload),
         });
+
+        const responseText = await response.text();
+        let responseJson: Record<string, any> | null = null;
+        try {
+          responseJson = responseText ? JSON.parse(responseText) : null;
+        } catch (_) {
+          responseJson = null;
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP_${response.status}`);
+        }
+        if (!responseJson || typeof responseJson !== 'object') {
+          throw new Error('BACKEND_INVALID_RESPONSE');
+        }
+        if (responseJson.ok !== true) {
+          const backendError = String(responseJson.error || '');
+          const backendReason = String(responseJson.reason || '');
+          throw new Error([backendError, backendReason].filter(Boolean).join(':') || 'BACKEND_REJECTED');
+        }
       } else {
         console.log('No APPS_SCRIPT_URL configured. Payload:', payload);
         await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -283,7 +302,7 @@ export default function App() {
     } catch (err) {
       console.error(err);
       setStatus('error');
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to submit inspection data.');
+      setErrorMessage(err instanceof Error ? `ส่งข้อมูลไม่สำเร็จ: ${err.message}` : 'ส่งข้อมูลตรวจห้องไม่สำเร็จ');
     }
   };
 
