@@ -94,6 +94,7 @@ const Button = ({
 };
 
 const INSPECTORS = ['พี่ก้อย', 'พี่ยุ', 'KP', 'Ma', 'KK'];
+const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxeC1KMNvVGF0LLd8cPxysZV_IGpVRdW5rJcYSqjwsMWFCZ261MsUJL1TjDD3yjOX-Q/exec';
 
 type Status = 'idle' | 'checking' | 'no-task' | 'submitting' | 'success' | 'error';
 
@@ -131,7 +132,7 @@ export default function App() {
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || '';
+  const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_GOOGLE_APPS_SCRIPT_URL;
 
   const [formData, setFormData] = useState<InspectionFormData>({
     taskId: searchParams.get('taskId') || '',
