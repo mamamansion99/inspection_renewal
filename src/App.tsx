@@ -54,7 +54,7 @@ const Select = ({ options, ...props }: { options: string[] } & React.SelectHTMLA
     className="w-full cursor-pointer appearance-none rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-neutral-900 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-neutral-900"
   >
     <option value="" disabled>
-      Select category
+      เลือก
     </option>
     {options.map((option) => (
       <option key={option} value={option}>
@@ -113,17 +113,17 @@ type TaskCheckResponse = {
 function getTaskErrorMessage(reason?: string) {
   switch (reason) {
     case 'MISSING_TASK_ID':
-      return 'Missing task ID in the link.';
+      return 'ไม่พบรหัสงานในลิงก์';
     case 'MISSING_TOKEN':
-      return 'Missing inspection token in the link.';
+      return 'ไม่พบโทเค็นตรวจห้องในลิงก์';
     case 'TOKEN_MISMATCH':
-      return 'This inspection link is invalid or has the wrong token.';
+      return 'ลิงก์ตรวจห้องไม่ถูกต้อง หรือโทเค็นไม่ตรง';
     case 'TASK_CLOSED':
-      return 'This inspection task is already closed.';
+      return 'งานตรวจห้องนี้ถูกปิดไปแล้ว';
     case 'TASK_NOT_FOUND':
-      return 'Inspection task not found.';
+      return 'ไม่พบงานตรวจห้องนี้';
     default:
-      return 'This inspection task is not available.';
+      return 'ไม่สามารถเปิดงานตรวจห้องนี้ได้';
   }
 }
 
@@ -190,7 +190,7 @@ export default function App() {
       } catch (err) {
         console.error('Verification Error:', err);
         setStatus('no-task');
-        setErrorMessage('Unable to verify this inspection task right now.');
+        setErrorMessage('ยังไม่สามารถตรวจสอบงานตรวจห้องได้ในขณะนี้');
       }
     };
 
@@ -290,7 +290,7 @@ export default function App() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-50 p-6">
         <Loader2 size={40} className="mb-4 animate-spin text-neutral-400" />
-        <p className="font-medium text-neutral-500">Checking inspection task...</p>
+        <p className="font-medium text-neutral-500">กำลังตรวจสอบงานตรวจห้อง...</p>
       </div>
     );
   }
@@ -306,13 +306,13 @@ export default function App() {
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
             <Info size={40} />
           </div>
-          <h1 className="mb-2 text-2xl font-bold text-neutral-900">Inspection task unavailable</h1>
+          <h1 className="mb-2 text-2xl font-bold text-neutral-900">ไม่สามารถเปิดงานตรวจห้องได้</h1>
           <p className="mb-8 text-neutral-600">
-            The inspection task could not be opened from this link. Check the task ID and token, or reopen the task in the backend.
+            ไม่สามารถเปิดงานจากลิงก์นี้ได้ กรุณาตรวจสอบ Task ID และ Token หรือเปิดงานใหม่จากฝั่งหลังบ้าน
           </p>
           <div className="mb-6 rounded-lg bg-neutral-50 p-4 text-left">
-            <p className="mb-2 text-[10px] uppercase tracking-widest text-neutral-400">Request</p>
-            <p className="break-all text-xs font-mono text-neutral-500">Task ID: {formData.taskId || 'missing'}</p>
+            <p className="mb-2 text-[10px] uppercase tracking-widest text-neutral-400">คำขอ</p>
+            <p className="break-all text-xs font-mono text-neutral-500">Task ID: {formData.taskId || 'ไม่มี'}</p>
           </div>
           {errorMessage && (
             <div className="mb-8 rounded-lg border border-red-100 bg-red-50 p-4 text-left text-sm text-red-600">
@@ -320,7 +320,7 @@ export default function App() {
             </div>
           )}
           <Button variant="secondary" onClick={() => window.location.reload()} className="w-full">
-            Try verification again
+            ลองตรวจสอบอีกครั้ง
           </Button>
         </motion.div>
       </div>
@@ -338,12 +338,12 @@ export default function App() {
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600">
             <CheckCircle2 size={40} />
           </div>
-          <h1 className="mb-2 text-2xl font-bold text-neutral-900">Inspection submitted</h1>
+          <h1 className="mb-2 text-2xl font-bold text-neutral-900">ส่งแบบตรวจห้องเรียบร้อยแล้ว</h1>
           <p className="mb-8 text-neutral-600">
-            Inspection data for room {formData.roomId || '-'} has been sent successfully.
+            ส่งข้อมูลตรวจห้อง {formData.roomId || '-'} สำเร็จแล้ว
           </p>
           <Button variant="primary" onClick={() => window.location.reload()}>
-            Start a new inspection
+            เริ่มตรวจห้องใหม่
           </Button>
         </motion.div>
       </div>
@@ -362,7 +362,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-500">
             <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-            Renewal inspection
+            ตรวจสภาพต่อสัญญา
           </div>
         </div>
       </header>
@@ -372,25 +372,25 @@ export default function App() {
           <section>
             <div className="mb-4 flex items-center gap-2">
               <Info size={18} className="text-neutral-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">Task summary</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">สรุปงาน</h2>
             </div>
             <Card className="p-6">
               <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
                 <div>
                   <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Task ID</p>
-                  <p className="text-sm font-mono text-neutral-900">{formData.taskId || 'Missing'}</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.taskId || 'ไม่มีข้อมูล'}</p>
                 </div>
                 <div>
                   <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Room ID</p>
-                  <p className="font-medium text-neutral-900">{formData.roomId || 'Missing'}</p>
+                  <p className="font-medium text-neutral-900">{formData.roomId || 'ไม่มีข้อมูล'}</p>
                 </div>
                 <div>
                   <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Lease ID</p>
-                  <p className="text-sm font-mono text-neutral-900">{formData.leaseId || 'Missing'}</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.leaseId || 'ไม่มีข้อมูล'}</p>
                 </div>
                 <div>
                   <p className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Inquiry ID</p>
-                  <p className="text-sm font-mono text-neutral-900">{formData.inquiryId || 'Missing'}</p>
+                  <p className="text-sm font-mono text-neutral-900">{formData.inquiryId || 'ไม่มีข้อมูล'}</p>
                 </div>
               </div>
             </Card>
@@ -399,12 +399,12 @@ export default function App() {
           <section className="space-y-4">
             <div className="mb-2 flex items-center gap-2">
               <User size={18} className="text-neutral-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">Inspector details</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">ข้อมูลผู้ตรวจ</h2>
             </div>
             <Card className="space-y-6 p-6">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <Label required>Inspector name</Label>
+                  <Label required>ชื่อผู้ตรวจ</Label>
                   <Select
                     required
                     options={INSPECTORS}
@@ -414,7 +414,7 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label required>Date</Label>
+                    <Label required>วันที่</Label>
                     <Input
                       required
                       type="date"
@@ -423,7 +423,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <Label required>Time</Label>
+                    <Label required>เวลา</Label>
                     <Input
                       required
                       type="time"
@@ -439,13 +439,13 @@ export default function App() {
           <section className="space-y-4">
             <div className="mb-2 flex items-center gap-2">
               <FileText size={18} className="text-neutral-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">Room condition</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">สภาพห้อง</h2>
             </div>
             <Card className="space-y-6 p-6">
               <div>
-                <Label>Overall room condition</Label>
+                <Label>สภาพห้องโดยรวม</Label>
                 <Textarea
-                  placeholder="Describe the room condition, issues found, and anything that should be included in the final summary."
+                  placeholder="อธิบายสภาพห้อง ปัญหาที่พบ และรายละเอียดสำคัญที่ต้องใส่ในสรุปผล"
                   value={formData.roomCondition}
                   onChange={(e) => setFormData((prev) => ({ ...prev, roomCondition: e.target.value }))}
                 />
@@ -456,7 +456,7 @@ export default function App() {
           <section className="space-y-4">
             <div className="mb-2 flex items-center gap-2">
               <Camera size={18} className="text-neutral-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">Inspection photos</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">รูปภาพประกอบการตรวจ</h2>
             </div>
 
             <div
@@ -466,8 +466,8 @@ export default function App() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 transition-transform group-hover:scale-110">
                 <Plus size={24} className="text-neutral-400" />
               </div>
-              <p className="font-medium text-neutral-900">Upload inspection photos</p>
-              <p className="mt-1 text-sm text-neutral-500">Tap to select files from this device.</p>
+              <p className="font-medium text-neutral-900">อัปโหลดรูปภาพการตรวจ</p>
+              <p className="mt-1 text-sm text-neutral-500">แตะเพื่อเลือกรูปจากอุปกรณ์นี้</p>
               <input
                 type="file"
                 multiple
@@ -489,12 +489,12 @@ export default function App() {
                   >
                     <Card className="flex flex-col gap-4 p-4 md:flex-row">
                       <div className="h-48 w-full flex-shrink-0 overflow-hidden rounded-lg bg-neutral-100 md:h-32 md:w-48">
-                        <img src={image.url} alt="Preview" className="h-full w-full object-cover" />
+                        <img src={image.url} alt="ภาพตัวอย่าง" className="h-full w-full object-cover" />
                       </div>
                       <div className="flex-grow space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-grow">
-                            <Label>Category</Label>
+                            <Label>หมวดหมู่</Label>
                             <Select
                               options={IMAGE_CATEGORIES}
                               value={image.category}
@@ -510,9 +510,9 @@ export default function App() {
                           </button>
                         </div>
                         <div>
-                          <Label>Caption / note</Label>
+                          <Label>คำอธิบาย / หมายเหตุ</Label>
                           <Input
-                            placeholder="Add a short note for this photo."
+                            placeholder="เพิ่มหมายเหตุสั้นๆ สำหรับรูปนี้"
                             value={image.caption}
                             onChange={(e) => updateImageMetadata(image.id, 'caption', e.target.value)}
                           />
@@ -534,11 +534,11 @@ export default function App() {
 
           <div className="pt-4">
             <Button type="submit" loading={status === 'submitting'} className="w-full py-4 text-lg">
-              Submit inspection
+              ส่งแบบตรวจห้อง
               <ChevronRight size={20} />
             </Button>
             <p className="mt-4 text-center text-xs text-neutral-400">
-              Submitting this form confirms the inspection details are ready to be recorded.
+              การส่งแบบฟอร์มนี้หมายถึงยืนยันว่าข้อมูลตรวจห้องพร้อมสำหรับบันทึกแล้ว
             </p>
           </div>
         </form>
@@ -546,15 +546,15 @@ export default function App() {
 
       <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between border-t border-neutral-200 bg-white p-4 md:hidden">
         <div className="text-xs text-neutral-500">
-          <p className="font-semibold text-neutral-900">Room {formData.roomId || '?'}</p>
-          <p>{formData.images.length} photo(s) attached</p>
+          <p className="font-semibold text-neutral-900">ห้อง {formData.roomId || '?'}</p>
+          <p>แนบรูปแล้ว {formData.images.length} รูป</p>
         </div>
         <Button
           onClick={() => document.querySelector('form')?.requestSubmit()}
           loading={status === 'submitting'}
           className="px-4 py-2 text-sm"
         >
-          Submit
+          ส่ง
         </Button>
       </div>
     </div>
