@@ -94,7 +94,7 @@ const Button = ({
 };
 
 const INSPECTORS = ['พี่ก้อย', 'พี่ยุ', 'KP', 'Ma', 'KK'];
-const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyE0DYbwJWuoIT9yayQ_ISoAB7ijZYIYb_Nh7MRkqOtqr4PyRiugUGCj-_LUYNds-vbUg/exec';
+const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyHaQMGFQU_sr26TTzJ7Vyqro_o3vGSsNyren8Sa9ptaA7p7DbUQ-kx3PVkTuo2fZAZLA/exec';
 const MAX_IMAGE_COUNT = 8;
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const INITIAL_MAX_DIMENSION = 1600;
