@@ -95,6 +95,11 @@ const Button = ({
 
 const INSPECTORS = ['พี่ก้อย', 'พี่ยุ', 'KP', 'Ma', 'KK'];
 const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxeC1KMNvVGF0LLd8cPxysZV_IGpVRdW5rJcYSqjwsMWFCZ261MsUJL1TjDD3yjOX-Q/exec';
+const MAX_IMAGE_COUNT = 8;
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const INITIAL_MAX_DIMENSION = 1600;
+const INITIAL_QUALITY = 0.74;
+const MIN_QUALITY = 0.56;
 
 type Status = 'idle' | 'checking' | 'no-task' | 'submitting' | 'success' | 'error';
 
@@ -111,6 +116,25 @@ type TaskCheckResponse = {
   assignedTo?: string;
 };
 
+type AppsScriptResponse = {
+  ok?: boolean;
+  error?: string;
+  reason?: string;
+  [key: string]: any;
+};
+
+type UploadedImageRef = {
+  category: string;
+  caption: string;
+  fileId?: string;
+  url?: string;
+  driveUrl?: string;
+  downloadUrl?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  name?: string;
+};
+
 function getTaskErrorMessage(reason?: string) {
   switch (reason) {
     case 'MISSING_TASK_ID':
@@ -125,6 +149,98 @@ function getTaskErrorMessage(reason?: string) {
       return 'ไม่พบงานตรวจห้องนี้';
     default:
       return 'ไม่สามารถเปิดงานตรวจห้องนี้ได้';
+  }
+}
+
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('READ_BLOB_FAILED'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImageElement(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('LOAD_IMAGE_FAILED'));
+    img.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('CANVAS_TO_BLOB_FAILED'));
+        }
+      },
+      mimeType,
+      quality,
+    );
+  });
+}
+
+async function compressImageForUpload(file: File) {
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImageElement(sourceUrl);
+    const mimeType = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    let maxDimension = INITIAL_MAX_DIMENSION;
+    let quality = INITIAL_QUALITY;
+    let compressedBlob: Blob | null = null;
+
+    for (let i = 0; i < 4; i += 1) {
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('NO_CANVAS_CONTEXT');
+      }
+      context.drawImage(img, 0, 0, width, height);
+      compressedBlob = await canvasToBlob(canvas, mimeType, quality);
+
+      if (compressedBlob.size <= MAX_UPLOAD_BYTES) {
+        break;
+      }
+
+      maxDimension = Math.max(960, Math.round(maxDimension * 0.82));
+      quality = Math.max(MIN_QUALITY, quality - 0.06);
+    }
+
+    if (!compressedBlob) {
+      throw new Error('IMAGE_COMPRESS_FAILED');
+    }
+    if (compressedBlob.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`IMAGE_TOO_LARGE_AFTER_COMPRESS:${compressedBlob.size}`);
+    }
+
+    const dataUrl = await readBlobAsDataUrl(compressedBlob);
+    const base64 = dataUrl.split(',')[1] || '';
+    if (!base64) {
+      throw new Error('ENCODE_BASE64_FAILED');
+    }
+
+    const ext = mimeType === 'image/webp' ? 'webp' : 'jpg';
+    const baseName = file.name.replace(/\.[^/.]+$/, '') || 'inspection-image';
+
+    return {
+      base64,
+      mimeType,
+      sizeBytes: compressedBlob.size,
+      fileName: `${baseName}.${ext}`,
+    };
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
   }
 }
 
@@ -202,7 +318,13 @@ export default function App() {
     const files = e.target.files;
     if (!files) return;
 
-    const selectedFiles = Array.from(files) as File[];
+    setErrorMessage('');
+    const selectedFiles = Array.from(files).slice(0, Math.max(0, MAX_IMAGE_COUNT - formData.images.length)) as File[];
+    if (!selectedFiles.length) {
+      setErrorMessage(`อัปโหลดได้สูงสุด ${MAX_IMAGE_COUNT} รูป`);
+      return;
+    }
+
     const newImages: InspectionImage[] = selectedFiles.map((file) => ({
       id: Math.random().toString(36).slice(2, 11),
       url: URL.createObjectURL(file),
@@ -222,10 +344,16 @@ export default function App() {
   };
 
   const removeImage = (id: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      images: prev.images.filter((image) => image.id !== id),
-    }));
+    setFormData((prev) => {
+      const target = prev.images.find((image) => image.id === id);
+      if (target?.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(target.url);
+      }
+      return {
+        ...prev,
+        images: prev.images.filter((image) => image.id !== id),
+      };
+    });
   };
 
   const updateImageMetadata = (id: string, field: 'category' | 'caption', value: string) => {
@@ -241,41 +369,30 @@ export default function App() {
     setErrorMessage('');
 
     try {
-      const processedImages = await Promise.all(
-        formData.images.map(async (image) => {
-          if (!image.file) {
-            return { category: image.category, caption: image.caption, url: image.url };
-          }
+      if (!APPS_SCRIPT_URL) {
+        console.log('No APPS_SCRIPT_URL configured. Form data:', formData);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        setStatus('success');
+        return;
+      }
 
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () =>
-              resolve({
-                category: image.category,
-                caption: image.caption,
-                base64: reader.result?.toString().split(',')[1],
-                mimeType: image.file?.type,
-              });
-            reader.readAsDataURL(image.file as File);
-          });
-        }),
-      );
+      if (!formData.taskId || !formData.token) {
+        throw new Error('MISSING_TASK_OR_TOKEN');
+      }
 
-      const payload = {
-        ...formData,
-        images: processedImages,
-        submittedAt: new Date().toISOString(),
-      };
+      if (formData.images.length > MAX_IMAGE_COUNT) {
+        throw new Error(`TOO_MANY_IMAGES_MAX_${MAX_IMAGE_COUNT}`);
+      }
 
-      if (APPS_SCRIPT_URL) {
+      const callAppsScript = async (body: Record<string, unknown>) => {
         const response = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
 
         const responseText = await response.text();
-        let responseJson: Record<string, any> | null = null;
+        let responseJson: AppsScriptResponse | null = null;
         try {
           responseJson = responseText ? JSON.parse(responseText) : null;
         } catch (_) {
@@ -293,11 +410,65 @@ export default function App() {
           const backendReason = String(responseJson.reason || '');
           throw new Error([backendError, backendReason].filter(Boolean).join(':') || 'BACKEND_REJECTED');
         }
-      } else {
-        console.log('No APPS_SCRIPT_URL configured. Payload:', payload);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        return responseJson;
+      };
+
+      const uploadedImages: UploadedImageRef[] = [];
+      for (const image of formData.images) {
+        if (!image.file) {
+          if (!image.url || image.url.startsWith('blob:')) {
+            throw new Error('INVALID_IMAGE_SOURCE');
+          }
+          uploadedImages.push({
+            category: image.category,
+            caption: image.caption,
+            url: image.url,
+          });
+          continue;
+        }
+
+        const compressed = await compressImageForUpload(image.file);
+        const uploadResponse = await callAppsScript({
+          action: 'UPLOAD_IMAGE',
+          taskId: formData.taskId,
+          token: formData.token,
+          category: image.category,
+          caption: image.caption,
+          base64: compressed.base64,
+          mimeType: compressed.mimeType,
+          fileName: compressed.fileName,
+        });
+
+        uploadedImages.push({
+          category: image.category,
+          caption: image.caption,
+          fileId: String(uploadResponse.fileId || ''),
+          url: String(uploadResponse.url || ''),
+          driveUrl: String(uploadResponse.driveUrl || ''),
+          downloadUrl: String(uploadResponse.downloadUrl || ''),
+          mimeType: String(uploadResponse.mimeType || compressed.mimeType || ''),
+          sizeBytes: Number(uploadResponse.sizeBytes || compressed.sizeBytes || 0),
+          name: String(uploadResponse.name || compressed.fileName || ''),
+        });
       }
 
+      const payload = {
+        action: 'SUBMIT_INSPECTION',
+        taskId: formData.taskId,
+        inquiryId: formData.inquiryId,
+        roomId: formData.roomId,
+        leaseId: formData.leaseId,
+        token: formData.token,
+        inspectionDate: formData.inspectionDate,
+        inspectionTime: formData.inspectionTime,
+        inspectorName: formData.inspectorName,
+        roomCondition: formData.roomCondition,
+        images: uploadedImages,
+        submittedAt: new Date().toISOString(),
+      };
+
+      await callAppsScript(payload);
       setStatus('success');
     } catch (err) {
       console.error(err);
