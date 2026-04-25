@@ -161,6 +161,10 @@ function readBlobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function getBase64FromDataUrl(dataUrl: string) {
+  return dataUrl.split(',')[1] || '';
+}
+
 function loadImageElement(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -168,6 +172,53 @@ function loadImageElement(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error('LOAD_IMAGE_FAILED'));
     img.src = url;
   });
+}
+
+async function loadImageFromFile(file: File): Promise<{ image: HTMLImageElement; cleanup: () => void }> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageElement(objectUrl);
+    return {
+      image,
+      cleanup: () => URL.revokeObjectURL(objectUrl),
+    };
+  } catch (_) {
+    URL.revokeObjectURL(objectUrl);
+
+    try {
+      const dataUrl = await readBlobAsDataUrl(file);
+      const image = await loadImageElement(dataUrl);
+      return {
+        image,
+        cleanup: () => {},
+      };
+    } catch (_) {
+      throw new Error('LOAD_IMAGE_FAILED');
+    }
+  }
+}
+
+async function encodeOriginalImageForUpload(file: File) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`IMAGE_TOO_LARGE_AFTER_COMPRESS:${file.size}`);
+  }
+
+  const mimeType = file.type || 'image/jpeg';
+  const dataUrl = await readBlobAsDataUrl(file);
+  const base64 = getBase64FromDataUrl(dataUrl);
+  if (!base64) {
+    throw new Error('ENCODE_BASE64_FAILED');
+  }
+
+  const baseName = file.name.replace(/\.[^/.]+$/, '') || 'inspection-image';
+  const ext = (file.name.split('.').pop() || mimeType.split('/')[1] || 'jpg').toLowerCase();
+
+  return {
+    base64,
+    mimeType,
+    sizeBytes: file.size,
+    fileName: `${baseName}.${ext}`,
+  };
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
@@ -187,9 +238,10 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: numb
 }
 
 async function compressImageForUpload(file: File) {
-  const sourceUrl = URL.createObjectURL(file);
+  let loadedImage: { image: HTMLImageElement; cleanup: () => void } | null = null;
   try {
-    const img = await loadImageElement(sourceUrl);
+    loadedImage = await loadImageFromFile(file);
+    const img = loadedImage.image;
     const mimeType = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
     let maxDimension = INITIAL_MAX_DIMENSION;
     let quality = INITIAL_QUALITY;
@@ -225,7 +277,7 @@ async function compressImageForUpload(file: File) {
     }
 
     const dataUrl = await readBlobAsDataUrl(compressedBlob);
-    const base64 = dataUrl.split(',')[1] || '';
+    const base64 = getBase64FromDataUrl(dataUrl);
     if (!base64) {
       throw new Error('ENCODE_BASE64_FAILED');
     }
@@ -239,8 +291,13 @@ async function compressImageForUpload(file: File) {
       sizeBytes: compressedBlob.size,
       fileName: `${baseName}.${ext}`,
     };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'LOAD_IMAGE_FAILED') {
+      return encodeOriginalImageForUpload(file);
+    }
+    throw err;
   } finally {
-    URL.revokeObjectURL(sourceUrl);
+    loadedImage?.cleanup();
   }
 }
 
