@@ -100,6 +100,7 @@ const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const INITIAL_MAX_DIMENSION = 1600;
 const INITIAL_QUALITY = 0.74;
 const MIN_QUALITY = 0.56;
+const BUILD_TAG = '2026-04-27.2';
 
 type Status = 'idle' | 'checking' | 'no-task' | 'submitting' | 'success' | 'error';
 
@@ -165,13 +166,52 @@ function getBase64FromDataUrl(dataUrl: string) {
   return dataUrl.split(',')[1] || '';
 }
 
+function getErrorReason(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error || 'UNKNOWN_ERROR');
+}
+
 function loadImageElement(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.decoding = 'async';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('LOAD_IMAGE_FAILED'));
     img.src = url;
   });
+}
+
+type CanvasImageSourceWithCleanup = {
+  width: number;
+  height: number;
+  draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
+  cleanup: () => void;
+};
+
+async function tryDecodeWithImageBitmap(file: File): Promise<CanvasImageSourceWithCleanup | null> {
+  if (typeof createImageBitmap !== 'function') {
+    return null;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    return {
+      width: bitmap.width,
+      height: bitmap.height,
+      draw: (ctx, width, height) => {
+        ctx.drawImage(bitmap, 0, 0, width, height);
+      },
+      cleanup: () => {
+        if (typeof bitmap.close === 'function') {
+          bitmap.close();
+        }
+      },
+    };
+  } catch (_) {
+    return null;
+  }
 }
 
 async function loadImageFromFile(file: File): Promise<{ image: HTMLImageElement; cleanup: () => void }> {
@@ -221,6 +261,25 @@ async function encodeOriginalImageForUpload(file: File) {
   };
 }
 
+async function decodeImageForCanvas(file: File): Promise<CanvasImageSourceWithCleanup> {
+  const bitmapSource = await tryDecodeWithImageBitmap(file);
+  if (bitmapSource) {
+    return bitmapSource;
+  }
+
+  const loaded = await loadImageFromFile(file);
+  const imageWidth = loaded.image.naturalWidth || loaded.image.width;
+  const imageHeight = loaded.image.naturalHeight || loaded.image.height;
+  return {
+    width: imageWidth,
+    height: imageHeight,
+    draw: (ctx, width, height) => {
+      ctx.drawImage(loaded.image, 0, 0, width, height);
+    },
+    cleanup: loaded.cleanup,
+  };
+}
+
 function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -238,19 +297,22 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: numb
 }
 
 async function compressImageForUpload(file: File) {
-  let loadedImage: { image: HTMLImageElement; cleanup: () => void } | null = null;
+  if (file.size <= MAX_UPLOAD_BYTES) {
+    return encodeOriginalImageForUpload(file);
+  }
+
+  let decodedImage: CanvasImageSourceWithCleanup | null = null;
   try {
-    loadedImage = await loadImageFromFile(file);
-    const img = loadedImage.image;
+    decodedImage = await decodeImageForCanvas(file);
     const mimeType = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
     let maxDimension = INITIAL_MAX_DIMENSION;
     let quality = INITIAL_QUALITY;
     let compressedBlob: Blob | null = null;
 
     for (let i = 0; i < 4; i += 1) {
-      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-      const width = Math.max(1, Math.round(img.width * scale));
-      const height = Math.max(1, Math.round(img.height * scale));
+      const scale = Math.min(1, maxDimension / Math.max(decodedImage.width, decodedImage.height));
+      const width = Math.max(1, Math.round(decodedImage.width * scale));
+      const height = Math.max(1, Math.round(decodedImage.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -258,7 +320,7 @@ async function compressImageForUpload(file: File) {
       if (!context) {
         throw new Error('NO_CANVAS_CONTEXT');
       }
-      context.drawImage(img, 0, 0, width, height);
+      decodedImage.draw(context, width, height);
       compressedBlob = await canvasToBlob(canvas, mimeType, quality);
 
       if (compressedBlob.size <= MAX_UPLOAD_BYTES) {
@@ -292,12 +354,12 @@ async function compressImageForUpload(file: File) {
       fileName: `${baseName}.${ext}`,
     };
   } catch (err) {
-    if (err instanceof Error && err.message === 'LOAD_IMAGE_FAILED') {
+    if (getErrorReason(err) === 'LOAD_IMAGE_FAILED') {
       return encodeOriginalImageForUpload(file);
     }
     throw err;
   } finally {
-    loadedImage?.cleanup();
+    decodedImage?.cleanup();
   }
 }
 
@@ -530,7 +592,7 @@ export default function App() {
     } catch (err) {
       console.error(err);
       setStatus('error');
-      setErrorMessage(err instanceof Error ? `ส่งข้อมูลไม่สำเร็จ: ${err.message}` : 'ส่งข้อมูลตรวจห้องไม่สำเร็จ');
+      setErrorMessage(`ส่งข้อมูลไม่สำเร็จ: ${getErrorReason(err)}`);
     }
   };
 
@@ -788,6 +850,7 @@ export default function App() {
             <p className="mt-4 text-center text-xs text-neutral-400">
               การส่งแบบฟอร์มนี้หมายถึงยืนยันว่าข้อมูลตรวจห้องพร้อมสำหรับบันทึกแล้ว
             </p>
+            <p className="mt-1 text-center text-[10px] text-neutral-400">build {BUILD_TAG}</p>
           </div>
         </form>
       </main>
