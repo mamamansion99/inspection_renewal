@@ -94,6 +94,33 @@ const Button = ({
 };
 
 const INSPECTORS = ['พี่ก้อย', 'พี่ยุ', 'KP', 'Ma', 'KK'];
+/**
+ * A cold Apps Script deployment answers the first call with its HTML redirect page
+ * instead of the JSON, which lands here as `Unexpected token '<'`. One failed parse
+ * was enough to tell the user the task could not be opened, even though the task was
+ * fine and a reload usually worked - so the request gets two more chances first.
+ */
+const CHECK_RETRY_DELAYS_MS = [1200, 2500];
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function fetchJsonWithRetry<T>(url: string): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= CHECK_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const response = await fetch(url);
+      const text = await response.text();
+      return JSON.parse(text) as T;
+    } catch (err) {
+      lastError = err;
+      const delay = CHECK_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined) break;
+      await wait(delay);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('request failed');
+}
+
 const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyHaQMGFQU_sr26TTzJ7Vyqro_o3vGSsNyren8Sa9ptaA7p7DbUQ-kx3PVkTuo2fZAZLA/exec';
 const MAX_IMAGE_COUNT = 8;
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
@@ -407,8 +434,7 @@ export default function App() {
           taskId: formData.taskId,
           token: formData.token,
         });
-        const response = await fetch(`${APPS_SCRIPT_URL}?${query.toString()}`);
-        const data: TaskCheckResponse = await response.json();
+        const data = await fetchJsonWithRetry<TaskCheckResponse>(`${APPS_SCRIPT_URL}?${query.toString()}`);
 
         if (data.ok && data.taskOpen) {
           setFormData((prev) => ({
