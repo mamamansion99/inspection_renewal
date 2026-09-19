@@ -9,6 +9,15 @@ export interface InspectionImage {
   category: string;
   caption: string;
   file?: File;
+  // Compressed as soon as the photo is picked, while the file handle is still fresh.
+  prepared?: Promise<PreparedImage>;
+}
+
+export interface PreparedImage {
+  base64: string;
+  mimeType: string;
+  sizeBytes: number;
+  fileName: string;
 }
 
 export interface InspectionFormData {

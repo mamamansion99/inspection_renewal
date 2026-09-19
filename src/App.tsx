@@ -19,7 +19,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { IMAGE_CATEGORIES, InspectionFormData, InspectionImage } from './types';
+import { IMAGE_CATEGORIES, InspectionFormData, InspectionImage, PreparedImage } from './types';
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
   <div className={`overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm ${className}`}>
@@ -126,8 +126,9 @@ const MAX_IMAGE_COUNT = 8;
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const INITIAL_MAX_DIMENSION = 1600;
 const INITIAL_QUALITY = 0.74;
-const MIN_QUALITY = 0.56;
-const BUILD_TAG = '2026-04-27.2';
+const MIN_QUALITY = 0.5;
+const MIN_DIMENSION = 800;
+const BUILD_TAG = '2026-09-19.1';
 
 type Status = 'idle' | 'checking' | 'no-task' | 'submitting' | 'success' | 'error';
 
@@ -222,22 +223,36 @@ async function tryDecodeWithImageBitmap(file: File): Promise<CanvasImageSourceWi
     return null;
   }
 
+  let bitmap: ImageBitmap | null = null;
   try {
-    const bitmap = await createImageBitmap(file);
+    bitmap = await createImageBitmap(file);
+  } catch (_) {
+    // Full-size decode of a 12MP+ photo can run out of memory in the LINE in-app browser.
+    // Ask the browser to downscale while decoding instead.
+    try {
+      bitmap = await createImageBitmap(file, { resizeWidth: INITIAL_MAX_DIMENSION, resizeQuality: 'medium' });
+    } catch (_) {
+      bitmap = null;
+    }
+  }
+  if (!bitmap) {
+    return null;
+  }
+
+  {
+    const decoded = bitmap;
     return {
-      width: bitmap.width,
-      height: bitmap.height,
+      width: decoded.width,
+      height: decoded.height,
       draw: (ctx, width, height) => {
-        ctx.drawImage(bitmap, 0, 0, width, height);
+        ctx.drawImage(decoded, 0, 0, width, height);
       },
       cleanup: () => {
-        if (typeof bitmap.close === 'function') {
-          bitmap.close();
+        if (typeof decoded.close === 'function') {
+          decoded.close();
         }
       },
     };
-  } catch (_) {
-    return null;
   }
 }
 
@@ -336,7 +351,7 @@ async function compressImageForUpload(file: File) {
     let quality = INITIAL_QUALITY;
     let compressedBlob: Blob | null = null;
 
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       const scale = Math.min(1, maxDimension / Math.max(decodedImage.width, decodedImage.height));
       const width = Math.max(1, Math.round(decodedImage.width * scale));
       const height = Math.max(1, Math.round(decodedImage.height * scale));
@@ -354,7 +369,7 @@ async function compressImageForUpload(file: File) {
         break;
       }
 
-      maxDimension = Math.max(960, Math.round(maxDimension * 0.82));
+      maxDimension = Math.max(MIN_DIMENSION, Math.round(maxDimension * 0.82));
       quality = Math.max(MIN_QUALITY, quality - 0.06);
     }
 
@@ -380,11 +395,6 @@ async function compressImageForUpload(file: File) {
       sizeBytes: compressedBlob.size,
       fileName: `${baseName}.${ext}`,
     };
-  } catch (err) {
-    if (getErrorReason(err) === 'LOAD_IMAGE_FAILED') {
-      return encodeOriginalImageForUpload(file);
-    }
-    throw err;
   } finally {
     decodedImage?.cleanup();
   }
@@ -470,13 +480,18 @@ export default function App() {
       return;
     }
 
-    const newImages: InspectionImage[] = selectedFiles.map((file) => ({
-      id: Math.random().toString(36).slice(2, 11),
-      url: URL.createObjectURL(file),
-      category: IMAGE_CATEGORIES[IMAGE_CATEGORIES.length - 1] || 'Other',
-      caption: '',
-      file,
-    }));
+    const newImages: InspectionImage[] = selectedFiles.map((file) => {
+      const prepared = compressImageForUpload(file);
+      prepared.catch(() => {}); // surfaced on submit
+      return {
+        id: Math.random().toString(36).slice(2, 11),
+        url: URL.createObjectURL(file),
+        category: IMAGE_CATEGORIES[IMAGE_CATEGORIES.length - 1] || 'Other',
+        caption: '',
+        file,
+        prepared,
+      };
+    });
 
     setFormData((prev) => ({
       ...prev,
@@ -560,7 +575,7 @@ export default function App() {
       };
 
       const uploadedImages: UploadedImageRef[] = [];
-      for (const image of formData.images) {
+      for (const [index, image] of formData.images.entries()) {
         if (!image.file) {
           if (!image.url || image.url.startsWith('blob:')) {
             throw new Error('INVALID_IMAGE_SOURCE');
@@ -573,7 +588,12 @@ export default function App() {
           continue;
         }
 
-        const compressed = await compressImageForUpload(image.file);
+        let compressed: PreparedImage;
+        try {
+          compressed = await (image.prepared ?? compressImageForUpload(image.file));
+        } catch (err) {
+          throw new Error(`รูปที่ ${index + 1} ย่อขนาดไม่ได้ กรุณากดลบรูปนี้แล้วถ่ายใหม่ (${getErrorReason(err)})`);
+        }
         const uploadResponse = await callAppsScript({
           action: 'UPLOAD_IMAGE',
           taskId: formData.taskId,
